@@ -1,0 +1,94 @@
+---
+- name: Host Module Operations on Unity
+  hosts: localhost
+  connection: local
+  vars:
+    unispherehost: '10.247.55.133'
+    port: '443'
+    verifycert: False
+    username: 'admin'
+    password: 'Password123!'
+    state_present: "present"
+    state_absent: "absent"
+    state_mapped: "mapped"
+    vol_state_absent: "absent-in-group"
+    cg_name: "AnsibleCGTest"
+    vol_name: "Ansible_test_vol-3"
+    host_name: "lglw7148"
+
+  tasks:
+  - name: Get details of consistency group using id
+    dellemc_unity_consistencygroup:
+      unispherehost: "{{unispherehost}}"
+      username: "{{username}}"
+      password: "{{password}}"
+      verifycert: "{{verifycert}}"
+      cg_name: "{{cg_name}}"
+      state: "present"
+    register: cg_details
+  
+  - set_fact:
+      UnityLunNameBeforeDecomm: []  
+      
+  - set_fact:
+      UnityLunNameBeforeDecomm: "{{UnityLunNameBeforeDecomm + [item.UnityLun.name]}}"
+    with_items: "{{cg_details.consistency_group_details.luns.UnityLunList}}"
+    when: cg_details.consistency_group_details.luns is defined and cg_details.consistency_group_details.luns != 'None' and cg_details.consistency_group_details.luns.UnityLunList is defined
+ 
+  - debug:
+      var: UnityLunNameBeforeDecomm
+
+  - name: Remove volumes from consistency group
+    dellemc_unity_consistencygroup:
+        unispherehost: "{{unispherehost}}"
+        username: "{{username}}"
+        password: "{{password}}"
+        verifycert: "{{verifycert}}"
+        cg_name: "{{cg_name}}"
+        volumes: 
+          - vol_name: "{{vol_name}}"
+        vol_state: "{{vol_state_absent}}"
+        state: "present"
+      
+  - name: Get details of consistency group after the volume is deleted
+    dellemc_unity_consistencygroup:
+      unispherehost: "{{unispherehost}}"
+      username: "{{username}}"
+      password: "{{password}}"
+      verifycert: "{{verifycert}}"
+      cg_name: "{{cg_name}}"
+      state: "present"
+    register: cg_details
+
+  - set_fact:
+      UnityLunNameAfterDecomm: []  
+
+  - set_fact:
+      UnityLunNameAfterDecomm: "{{UnityLunNameAfterDecomm + [item.UnityLun.name]}}"
+    with_items: "{{cg_details.consistency_group_details.luns.UnityLunList}}"
+    when: cg_details.consistency_group_details.luns is defined and cg_details.consistency_group_details.luns != 'None' and cg_details.consistency_group_details.luns.UnityLunList is defined
+
+  - name: Printing the volume to be deleted from the consistency group
+    debug:
+      msg: "{{  UnityLunNameBeforeDecomm | difference(UnityLunNameAfterDecomm) | list }}"
+  
+  - name: Unmap Host by host_name from Volume
+    dellemc_unity_volume:
+      unispherehost: "{{unispherehost}}"
+      username: "{{username}}"
+      password: "{{password}}"
+      verifycert: "{{verifycert}}"
+      vol_name: "{{vol_name}}"
+      host_name: "{{host_name}}"
+      mapping_state: "unmapped"
+      state: "present"
+  
+  - name: Delete Volume by vol name
+    dellemc_unity_volume:
+      unispherehost: "{{unispherehost}}"
+      username: "{{username}}"
+      password: "{{password}}"
+      verifycert: "{{verifycert}}"
+      vol_name: "{{item}}"
+      state: "absent"
+    loop: "{{  UnityLunNameBeforeDecomm | difference(UnityLunNameAfterDecomm) | list }}"

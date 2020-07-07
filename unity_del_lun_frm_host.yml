@@ -13,7 +13,7 @@
     state_mapped: "mapped"
     vol_state_absent: "absent-in-group"
     cg_name: "AnsibleCGTest"
-    vol_name: "Ansible_test_vol-3"
+    vol_name: "Ansible_test_vol-3-1"
     host_name: "lglw7148"
 
   tasks:
